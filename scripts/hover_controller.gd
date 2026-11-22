@@ -84,10 +84,11 @@ func _apply_altitude_hold() -> void:
 
 func _apply_flight_forces() -> void:
     var basis := global_transform.basis
-    # This imported hovercraft's nose points along local +Z.
-    apply_central_force(basis.z * smoothed_forward * forward_thrust)
-    # In this model's local axes, screen-right corresponds to local -X.
-    apply_central_force(-basis.x * smoothed_strafe * lateral_thrust)
+    # The vehicle faces local -Z; its rear and chase camera are on +Z.
+    # Keep the visual pitch/bank response unchanged; correct only translation.
+    apply_central_force(-basis.z * smoothed_forward * forward_thrust)
+    # Screen-right is local +X for this vehicle.
+    apply_central_force(basis.x * smoothed_strafe * lateral_thrust)
 
     # Preserve forward momentum while gently suppressing sideways skating.
     var local_velocity: Vector3 = basis.inverse() * linear_velocity
