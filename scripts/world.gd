@@ -213,6 +213,21 @@ func _make_vehicle() -> void:
     collision.position.y = 0.1
     vehicle.add_child(collision)
 
+var is_portrait := false
+var free_camera_mode := false
+var camera_distance := 10.0
+var camera_min_distance := 4.0
+var camera_max_distance := 24.0
+var free_camera_speed := 12.0
+var free_camera_yaw := 0.0
+var free_camera_pitch := -0.18
+var free_camera_drag_index := -1
+var free_camera_last_touch := Vector2.ZERO
+var free_camera_mouse_drag := false
+var joystick_control: TouchJoystick
+var camera_mode_button: Button
+var camera_zoom_label: Label
+
 func _make_camera() -> void:
     camera = Camera3D.new()
     camera.name = "ChaseCamera"
@@ -259,15 +274,35 @@ func _make_hud() -> void:
     down_button.setup("down", "▼")
     lift_controls.add_child(down_button)
 
-    var orientation_button := Button.new()
-    orientation_button.text = "ПОВЕРНУТЬ ЭКРАН"
-    orientation_button.custom_minimum_size = Vector2(210, 54)
-    orientation_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-    orientation_button.position = Vector2(-230, 18)
-    orientation_button.pressed.connect(_toggle_screen_orientation.bind(orientation_button))
-    layer.add_child(orientation_button)
+    # Camera controls grouped at the upper-right, below the orientation switch.
+    var camera_controls := HBoxContainer.new()
+    camera_controls.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+    camera_controls.position = Vector2(-250, 82)
+    camera_controls.add_theme_constant_override("separation", 8)
+    layer.add_child(camera_controls)
 
-var is_portrait := false
+    var zoom_in := Button.new()
+    zoom_in.text = "+"
+    zoom_in.tooltip_text = "Приблизить камеру"
+    zoom_in.custom_minimum_size = Vector2(64, 58)
+    zoom_in.pressed.connect(_zoom_camera.bind(-1.5))
+    camera_controls.add_child(zoom_in)
+
+    var zoom_out := Button.new()
+    zoom_out.text = "−"
+    zoom_out.tooltip_text = "Отдалить камеру"
+    zoom_out.custom_minimum_size = Vector2(64, 58)
+    zoom_out.pressed.connect(_zoom_camera.bind(1.5))
+    camera_controls.add_child(zoom_out)
+
+    camera_mode_button = Button.new()
+    camera_mode_button.text = "КАМЕРА"
+    camera_mode_button.tooltip_text = "Включить свободную камеру"
+    camera_mode_button.custom_minimum_size = Vector2(116, 58)
+    camera_mode_button.pressed.connect(_toggle_free_camera)
+    camera_controls.add_child(camera_mode_button)
+
+
 
 func _toggle_screen_orientation(button: Button) -> void:
     is_portrait = not is_portrait
@@ -278,15 +313,74 @@ func _toggle_screen_orientation(button: Button) -> void:
         DisplayServer.screen_set_orientation(DisplayServer.SCREEN_LANDSCAPE)
         button.text = "ПОРТРЕТНАЯ ОРИЕНТАЦИЯ"
 
+func _zoom_camera(change: float) -> void:
+    camera_distance = clampf(camera_distance + change, camera_min_distance, camera_max_distance)
+    if camera_zoom_label:
+        camera_zoom_label.text = "Камера: %.1f м" % camera_distance
+
+func _toggle_free_camera() -> void:
+    free_camera_mode = not free_camera_mode
+    if free_camera_mode:
+        free_camera_yaw = camera.global_rotation.y
+        free_camera_pitch = camera.global_rotation.x
+        camera_mode_button.text = "ВОЗВРАТ"
+        camera_mode_button.tooltip_text = "Вернуть камеру за ховер"
+        vehicle.set_physics_process(false)
+        telemetry.text = "Свободная камера: джойстик — движение, свайп — обзор"
+    else:
+        camera_mode_button.text = "КАМЕРА"
+        camera_mode_button.tooltip_text = "Включить свободную камеру"
+        vehicle.set_physics_process(true)
+        FlightInput.held["forward"] = false
+        FlightInput.held["back"] = false
+        FlightInput.held["left"] = false
+        FlightInput.held["right"] = false
+        FlightInput.held["up"] = false
+        FlightInput.held["down"] = false
+
+func _unhandled_input(event: InputEvent) -> void:
+    if not free_camera_mode:
+        return
+    if event is InputEventScreenTouch:
+        if event.pressed and free_camera_drag_index == -1:
+            free_camera_drag_index = event.index
+            free_camera_last_touch = event.position
+        elif not event.pressed and event.index == free_camera_drag_index:
+            free_camera_drag_index = -1
+    elif event is InputEventScreenDrag and event.index == free_camera_drag_index:
+        var delta_pos: Vector2 = event.position - free_camera_last_touch
+        free_camera_last_touch = event.position
+        _rotate_free_camera(delta_pos)
+    elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
+        free_camera_mouse_drag = event.pressed
+    elif event is InputEventMouseMotion and free_camera_mouse_drag:
+        _rotate_free_camera(event.relative)
+
+func _rotate_free_camera(delta_pos: Vector2) -> void:
+    free_camera_yaw -= delta_pos.x * 0.004
+    free_camera_pitch = clampf(free_camera_pitch - delta_pos.y * 0.004, -1.35, 1.1)
+
 func _process(delta: float) -> void:
     if not is_instance_valid(vehicle):
         return
-    # Camera follows from behind and above, using the hovercraft's own heading.
-    var target := vehicle.global_position + Vector3(0, 0.9, 0)
-    # Place the camera 10 metres behind the rear edge (not the vehicle centre).
-    # The model is approximately 4.5 m long; rear edge is local Z=-2.25 m.
-    # The 4 m height and 9.165 m rearward offset form a 10 m diagonal.
-    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, 4.0, -11.415)
-    camera.global_position = camera.global_position.lerp(desired, minf(delta * 3.5, 1.0))
+    if free_camera_mode:
+        var move := Vector3(
+            FlightInput.axis("left", "right"),
+            FlightInput.axis("down", "up"),
+            FlightInput.axis("back", "forward")
+        )
+        var basis := Basis(Vector3.UP, free_camera_yaw) * Basis(Vector3.RIGHT, free_camera_pitch)
+        camera.global_position += (basis * move) * free_camera_speed * delta
+        camera.global_basis = basis
+        return
+
+    # The hovercraft moves forward along local -Z; its rear is local +Z.
+    # Camera distance is measured from the rear edge, with a small elevated racing-game view.
+    var rear_offset := 2.25
+    var vertical_offset := 3.0
+    var horizontal_offset := sqrt(maxf(camera_distance * camera_distance - vertical_offset * vertical_offset, 0.1))
+    var target := vehicle.global_position + Vector3(0, 0.65, 0)
+    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, vertical_offset, rear_offset + horizontal_offset)
+    camera.global_position = camera.global_position.lerp(desired, minf(delta * 5.0, 1.0))
     camera.look_at(target, Vector3.UP)
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
