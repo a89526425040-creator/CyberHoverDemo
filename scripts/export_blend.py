@@ -163,7 +163,14 @@ print("=== END RESTORED MATERIALS ===")
 mesh_inventory = []
 for obj in bpy.context.scene.objects:
     if obj.type == "MESH":
-        mesh_inventory.append((obj.name, tuple(round(float(v), 3) for v in obj.dimensions)))
+        mesh_materials = [slot.material.name if slot.material else "<none>" for slot in obj.material_slots]
+        mesh_inventory.append({
+            "name": obj.name,
+            "dimensions": tuple(round(float(v), 3) for v in obj.dimensions),
+            "location": tuple(round(float(v), 3) for v in obj.location),
+            "parent": obj.parent.name if obj.parent else "<root>",
+            "materials": mesh_materials,
+        })
 print("Preserved source mesh count:", len(mesh_inventory))
 print("Source mesh inventory:", mesh_inventory)
 
