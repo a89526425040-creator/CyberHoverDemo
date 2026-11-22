@@ -148,7 +148,7 @@ func _make_pad() -> void:
     var floor := StaticBody3D.new()
     var mesh := MeshInstance3D.new()
     var box := BoxMesh.new()
-    box.size = Vector3(100, 1, 100)
+    box.size = Vector3(500, 1, 500)
     mesh.mesh = box
     var mat := StandardMaterial3D.new()
     mat.albedo_color = Color(0.035, 0.055, 0.08)
@@ -167,7 +167,7 @@ func _make_pad() -> void:
     for i in range(4):
         var strip := MeshInstance3D.new()
         var strip_mesh := BoxMesh.new()
-        strip_mesh.size = Vector3(0.15, 0.04, 84) if i < 2 else Vector3(84, 0.04, 0.15)
+        strip_mesh.size = Vector3(0.15, 0.04, 480) if i < 2 else Vector3(480, 0.04, 0.15)
         strip.mesh = strip_mesh
         var glow := StandardMaterial3D.new()
         glow.albedo_color = Color(0.02, 0.65, 0.9)
@@ -175,7 +175,7 @@ func _make_pad() -> void:
         glow.emission = Color(0.02, 0.45, 0.9)
         glow.emission_energy_multiplier = 2.0
         strip.material_override = glow
-        strip.position = [Vector3(-42, 0.03, 0), Vector3(42, 0.03, 0), Vector3(0, 0.03, -42), Vector3(0, 0.03, 42)][i]
+        strip.position = [Vector3(-240, 0.03, 0), Vector3(240, 0.03, 0), Vector3(0, 0.03, -240), Vector3(0, 0.03, 240)][i]
         add_child(strip)
 
 func _make_vehicle() -> void:
