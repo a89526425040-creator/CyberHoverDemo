@@ -3,6 +3,7 @@ extends Node3D
 var vehicle: RigidBody3D
 var camera: Camera3D
 var telemetry: Label
+var engine_effects: Array[GPUParticles3D] = []
 
 
 class TouchJoystick extends Control:
@@ -210,12 +211,93 @@ func _make_vehicle() -> void:
         body.material_override = body_mat
         pivot.add_child(body)
 
+    _create_engine_effects(pivot)
     var collision := CollisionShape3D.new()
     var collision_shape := BoxShape3D.new()
     collision_shape.size = Vector3(2.2, 0.65, 4.2)
     collision.shape = collision_shape
     collision.position.y = 0.1
     vehicle.add_child(collision)
+
+func _create_engine_effects(pivot: Node3D) -> void:
+    # These four Blender mesh nodes are the vehicle's paired rear thruster housings.
+    # Resolve their imported transforms instead of guessing world-space coordinates.
+    var nozzle_names := ["Cylinder", "Cylinder.028", "Cylinder.001", "Cylinder.026"]
+    for nozzle_name in nozzle_names:
+        var nozzle := pivot.find_child(nozzle_name, true, false) as Node3D
+        if nozzle == null:
+            push_warning("Engine nozzle node not found in imported hovercraft: " + nozzle_name)
+            continue
+        var nozzle_position := pivot.to_local(nozzle.global_position) + Vector3(0.0, 0.0, 0.22)
+        _add_engine_plume(pivot, nozzle_position, false)
+        _add_engine_plume(pivot, nozzle_position + Vector3(0.0, 0.0, 0.08), true)
+
+func _add_engine_plume(parent: Node3D, local_position: Vector3, core: bool) -> void:
+    var particles := GPUParticles3D.new()
+    particles.name = "EngineFlameCore" if core else "EngineFlame"
+    particles.position = local_position
+    particles.amount = 24 if core else 34
+    particles.lifetime = 0.28 if core else 0.42
+    particles.explosiveness = 0.0
+    particles.randomness = 0.16
+    particles.local_coords = false
+    particles.emitting = false
+    particles.visibility_aabb = AABB(Vector3(-2.5, -2.5, -2.5), Vector3(5.0, 5.0, 8.0))
+
+    var process := ParticleProcessMaterial.new()
+    process.direction = Vector3(0.0, 0.0, 1.0)
+    process.spread = 7.0 if core else 11.0
+    process.initial_velocity_min = 5.0 if core else 3.2
+    process.initial_velocity_max = 8.0 if core else 5.8
+    process.gravity = Vector3.ZERO
+    process.damping_min = 0.0
+    process.damping_max = 0.0
+    process.scale_min = 0.10 if core else 0.17
+    process.scale_max = 0.17 if core else 0.29
+    process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+    process.emission_sphere_radius = 0.055 if core else 0.10
+
+    var gradient := Gradient.new()
+    if core:
+        gradient.set_color(0, Color(0.88, 0.98, 1.0, 1.0))
+        gradient.add_point(0.38, Color(0.18, 0.78, 1.0, 0.95))
+        gradient.add_point(1.0, Color(0.04, 0.22, 1.0, 0.0))
+    else:
+        gradient.set_color(0, Color(0.20, 0.82, 1.0, 0.88))
+        gradient.add_point(0.55, Color(0.04, 0.38, 1.0, 0.62))
+        gradient.add_point(1.0, Color(0.02, 0.12, 0.75, 0.0))
+    var ramp := GradientTexture1D.new()
+    ramp.gradient = gradient
+    process.color_ramp = ramp
+    particles.process_material = process
+
+    var quad := QuadMesh.new()
+    quad.size = Vector2(0.30, 0.30) if core else Vector2(0.48, 0.48)
+    var flame_material := StandardMaterial3D.new()
+    flame_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    flame_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    flame_material.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+    flame_material.vertex_color_use_as_albedo = true
+    flame_material.emission_enabled = true
+    flame_material.emission = Color(0.10, 0.55, 1.0)
+    flame_material.emission_energy_multiplier = 2.4 if core else 1.8
+    quad.material = flame_material
+    particles.draw_pass_1 = quad
+    parent.add_child(particles)
+    engine_effects.append(particles)
+
+func _update_engine_effects() -> void:
+    if engine_effects.is_empty() or not is_instance_valid(vehicle):
+        return
+    var speed_ratio := clampf(vehicle.linear_velocity.length() / 30.0, 0.0, 1.0)
+    var controller := vehicle
+    var input_power := maxf(absf(controller.smoothed_forward), maxf(absf(controller.smoothed_strafe), absf(controller.smoothed_vertical)))
+    var active := speed_ratio > 0.025 or input_power > 0.06
+    var intensity := clampf(maxf(speed_ratio, input_power) * 1.35, 0.12, 1.0)
+    for particles in engine_effects:
+        if is_instance_valid(particles):
+            particles.emitting = active
+            particles.amount_ratio = intensity
 
 var is_portrait := false
 var free_camera_mode := false
@@ -387,4 +469,5 @@ func _process(delta: float) -> void:
     var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, vertical_offset, -(rear_offset + horizontal_offset))
     camera.global_position = camera.global_position.lerp(desired, minf(delta * 5.0, 1.0))
     camera.look_at(target, Vector3.UP)
+    _update_engine_effects()
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
