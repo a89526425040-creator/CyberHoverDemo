@@ -475,7 +475,7 @@ func _process(delta: float) -> void:
     flat_forward = flat_forward.normalized()
     var flat_right := Vector3.UP.cross(flat_forward).normalized()
     var desired := vehicle_transform.origin + Vector3.UP * vertical_offset - flat_forward * (rear_offset + horizontal_offset)
-    camera.global_position = camera.global_position.lerp(desired, minf(delta * 4.5, 1.0))
+    camera.global_position = desired
     camera.look_at(target, Vector3.UP)
     _update_engine_effects()
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
