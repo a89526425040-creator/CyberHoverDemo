@@ -377,7 +377,7 @@ func _process(delta: float) -> void:
     # The hovercraft moves forward along local -Z; its rear is local +Z.
     # Camera distance is measured from the rear edge, with a small elevated racing-game view.
     var rear_offset := 2.25
-    var vertical_offset := 3.0
+    var vertical_offset := 6.0
     var horizontal_offset := sqrt(maxf(camera_distance * camera_distance - vertical_offset * vertical_offset, 0.1))
     var target := vehicle.global_position + Vector3(0, 0.65, 0)
     var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, vertical_offset, -(rear_offset + horizontal_offset))
