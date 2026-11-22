@@ -115,22 +115,24 @@ func _apply_flight_forces() -> void:
         var excess := speed - max_speed
         apply_central_force(-linear_velocity.normalized() * excess * mass * 1.4)
 
-func _apply_attitude_control(delta: float) -> void:
+func _apply_attitude_control(_delta: float) -> void:
     var basis := global_transform.basis
     var local_angular: Vector3 = basis.inverse() * angular_velocity
     var speed_factor := clampf(linear_velocity.length() / 9.0, 0.22, 1.0)
 
-    # Horizontal stick steers the nose; the craft banks naturally into turns.
+    # Separate heading from pitch and bank so the craft can lean without drifting over.
+    var heading_basis := Basis(Vector3.UP, global_rotation.y)
+    var relative_basis: Basis = heading_basis.inverse() * basis
+    var attitude := relative_basis.get_euler()
+
     var desired_yaw_rate := -smoothed_strafe * 0.72 * speed_factor
     var yaw_control := (desired_yaw_rate - local_angular.y) * yaw_torque
-    var desired_pitch_rate := -smoothed_forward * max_pitch
-    var desired_roll_rate := -smoothed_strafe * max_bank
-    var pitch_control := (desired_pitch_rate - local_angular.x) * attitude_gain
-    var roll_control := (desired_roll_rate - local_angular.z) * attitude_gain
 
-    # Light self-leveling only: it no longer locks the body upright.
-    var up_error_local: Vector3 = basis.inverse() * basis.y.cross(Vector3.UP)
-    var level_torque := Vector3(up_error_local.x, 0.0, up_error_local.z) * attitude_gain * 0.22
-    var damping_torque := -local_angular * attitude_damping * 0.45
-    var local_torque := Vector3(pitch_control, yaw_control, roll_control) + level_torque + damping_torque
-    apply_torque(basis * local_torque)
+    # Stick deflection sets a bank/pitch angle; spring-damper control returns smoothly to level.
+    var desired_pitch := -smoothed_forward * max_pitch
+    var desired_roll := -smoothed_strafe * max_bank
+    var pitch_control := (desired_pitch - attitude.x) * attitude_gain - local_angular.x * attitude_damping
+    var roll_control := (desired_roll - attitude.z) * attitude_gain - local_angular.z * attitude_damping
+    var yaw_damping := -local_angular.y * attitude_damping * 0.25
+
+    apply_torque(basis * Vector3(pitch_control, yaw_control + yaw_damping, roll_control))
