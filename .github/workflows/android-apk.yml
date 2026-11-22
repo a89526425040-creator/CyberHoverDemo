@@ -40,6 +40,12 @@ jobs:
         if: steps.model.outputs.available == 'true'
         run: blender -b --python scripts/export_blend.py
 
+      - name: Remove Blender source before Godot import
+        run: |
+          test -s assets/hovercar.glb
+          rm -f assets/source/cdp-test-7.blend
+          echo "Godot will import the optimized GLB, not the original Blender project."
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
