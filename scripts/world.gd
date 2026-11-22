@@ -235,7 +235,7 @@ func _make_camera() -> void:
     camera.fov = 68
     add_child(camera)
     # Start behind and above the hovercraft so the complete vehicle is visible.
-    camera.global_position = Vector3(0, 8.0, 14.0)
+    camera.global_position = Vector3(0, 8.0, -14.0)
     camera.look_at(Vector3(0, 1.5, 0), Vector3.UP)
 
 func _make_hud() -> void:
@@ -380,7 +380,7 @@ func _process(delta: float) -> void:
     var vertical_offset := 3.0
     var horizontal_offset := sqrt(maxf(camera_distance * camera_distance - vertical_offset * vertical_offset, 0.1))
     var target := vehicle.global_position + Vector3(0, 0.65, 0)
-    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, vertical_offset, rear_offset + horizontal_offset)
+    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, vertical_offset, -(rear_offset + horizontal_offset))
     camera.global_position = camera.global_position.lerp(desired, minf(delta * 5.0, 1.0))
     camera.look_at(target, Vector3.UP)
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
