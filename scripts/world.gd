@@ -107,14 +107,18 @@ func _make_vehicle() -> void:
 
 func _make_camera() -> void:
     camera = Camera3D.new()
+    camera.name = "ChaseCamera"
     camera.current = true
-    camera.fov = 72
+    camera.fov = 68
     add_child(camera)
-    camera.global_position = Vector3(0, 4.5, 9)
+    # Start behind and above the hovercraft so the complete vehicle is visible.
+    camera.global_position = Vector3(0, 8.0, 14.0)
+    camera.look_at(Vector3(0, 1.5, 0), Vector3.UP)
 
 func _make_hud() -> void:
     var layer := CanvasLayer.new()
     add_child(layer)
+
     var panel := VBoxContainer.new()
     panel.position = Vector2(22, 18)
     layer.add_child(panel)
@@ -124,33 +128,77 @@ func _make_hud() -> void:
     heading.add_theme_color_override("font_color", Color(0.15, 0.85, 1))
     panel.add_child(heading)
     telemetry = Label.new()
-    telemetry.text = "W/S — вперёд/назад | A/D — в стороны | SPACE/CTRL — вверх/вниз"
+    telemetry.text = "Управление расположено слева"
     telemetry.add_theme_color_override("font_color", Color(0.85, 0.92, 1))
     panel.add_child(telemetry)
-    var row := HBoxContainer.new()
-    row.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-    row.position = Vector2(-560, -150)
-    layer.add_child(row)
-    _add_touch_button(row, "◀", "left")
-    _add_touch_button(row, "▶", "right")
-    _add_touch_button(row, "▲", "forward")
-    _add_touch_button(row, "▼", "back")
-    _add_touch_button(row, "LIFT +", "up")
-    _add_touch_button(row, "LIFT −", "down")
+
+    # All flight controls are grouped on the left side of the screen.
+    var controls := VBoxContainer.new()
+    controls.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+    controls.position = Vector2(20, -238)
+    controls.add_theme_constant_override("separation", 8)
+    layer.add_child(controls)
+
+    var directions := GridContainer.new()
+    directions.columns = 3
+    directions.add_theme_constant_override("h_separation", 7)
+    directions.add_theme_constant_override("v_separation", 7)
+    controls.add_child(directions)
+    _add_control_spacer(directions)
+    _add_touch_button(directions, "▲", "forward")
+    _add_control_spacer(directions)
+    _add_touch_button(directions, "◀", "left")
+    _add_control_spacer(directions)
+    _add_touch_button(directions, "▶", "right")
+    _add_control_spacer(directions)
+    _add_touch_button(directions, "▼", "back")
+    _add_control_spacer(directions)
+
+    var lift_row := HBoxContainer.new()
+    lift_row.add_theme_constant_override("separation", 7)
+    controls.add_child(lift_row)
+    _add_touch_button(lift_row, "LIFT +", "up")
+    _add_touch_button(lift_row, "LIFT −", "down")
+
+    var orientation_button := Button.new()
+    orientation_button.text = "ПОВЕРНУТЬ ЭКРАН"
+    orientation_button.custom_minimum_size = Vector2(210, 54)
+    orientation_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+    orientation_button.position = Vector2(-230, 18)
+    orientation_button.pressed.connect(_toggle_screen_orientation.bind(orientation_button))
+    layer.add_child(orientation_button)
+
+func _add_control_spacer(parent: GridContainer) -> void:
+    var spacer := Control.new()
+    spacer.custom_minimum_size = Vector2(76, 66)
+    parent.add_child(spacer)
 
 func _add_touch_button(parent: Control, caption: String, action: String) -> void:
     var button := Button.new()
     button.text = caption
-    button.custom_minimum_size = Vector2(82, 72)
+    button.custom_minimum_size = Vector2(76, 66)
+    button.focus_mode = Control.FOCUS_NONE
     button.button_down.connect(func(): FlightInput.set_action(action, true))
     button.button_up.connect(func(): FlightInput.set_action(action, false))
     parent.add_child(button)
 
+var is_portrait := false
+
+func _toggle_screen_orientation(button: Button) -> void:
+    is_portrait = not is_portrait
+    if is_portrait:
+        DisplayServer.screen_set_orientation(DisplayServer.SCREEN_PORTRAIT)
+        button.text = "АЛЬБОМНАЯ ОРИЕНТАЦИЯ"
+    else:
+        DisplayServer.screen_set_orientation(DisplayServer.SCREEN_LANDSCAPE)
+        button.text = "ПОРТРЕТНАЯ ОРИЕНТАЦИЯ"
+
 func _process(delta: float) -> void:
     if not is_instance_valid(vehicle):
         return
-    var target := vehicle.global_position + Vector3(0, 0.7, 0)
-    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, 3.6, 9.0)
-    camera.global_position = camera.global_position.lerp(desired, minf(delta * 3.0, 1.0))
+    # Camera follows from behind and above, using the hovercraft's own heading.
+    var target := vehicle.global_position + Vector3(0, 0.9, 0)
+    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, 7.2, 13.5)
+    camera.global_position = camera.global_position.lerp(desired, minf(delta * 3.5, 1.0))
     camera.look_at(target, Vector3.UP)
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
