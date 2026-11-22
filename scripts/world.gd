@@ -283,8 +283,10 @@ func _process(delta: float) -> void:
         return
     # Camera follows from behind and above, using the hovercraft's own heading.
     var target := vehicle.global_position + Vector3(0, 0.9, 0)
-    # Camera offset is exactly 10 metres from the hovercraft origin.
-    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, 4.0, -9.165)
+    # Place the camera 10 metres behind the rear edge (not the vehicle centre).
+    # The model is approximately 4.5 m long; rear edge is local Z=-2.25 m.
+    # The 4 m height and 9.165 m rearward offset form a 10 m diagonal.
+    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, 4.0, -11.415)
     camera.global_position = camera.global_position.lerp(desired, minf(delta * 3.5, 1.0))
     camera.look_at(target, Vector3.UP)
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
