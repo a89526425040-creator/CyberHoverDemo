@@ -459,8 +459,8 @@ func _process(delta: float) -> void:
     # Follow the interpolated physics transform so camera motion stays in sync
     # with rendered rigid-body motion instead of sampling between physics ticks.
     var vehicle_transform := vehicle.get_global_transform_interpolated()
-    # The hovercraft moves forward along local -Z; its rear is local +Z.
-    # Camera distance is measured from the rear edge, with a small elevated racing-game view.
+    # The imported hovercraft's nose points along local +Z; its rear is local -Z.
+    # Keep the chase camera behind the rear edge, with a small elevated racing-game view.
     var rear_offset := 2.25
     var vertical_offset := 6.0
     var horizontal_offset := sqrt(maxf(camera_distance * camera_distance - vertical_offset * vertical_offset, 0.1))
@@ -468,10 +468,10 @@ func _process(delta: float) -> void:
 
     # Follow heading only. Do not rotate the chase-camera offset with pitch/bank:
     # otherwise every acceleration tilt moves the camera vertically and sideways.
-    var flat_forward := -vehicle_transform.basis.z
+    var flat_forward := vehicle_transform.basis.z
     flat_forward.y = 0.0
     if flat_forward.length_squared() < 0.001:
-        flat_forward = Vector3.FORWARD
+        flat_forward = Vector3.BACK
     flat_forward = flat_forward.normalized()
     var flat_right := Vector3.UP.cross(flat_forward).normalized()
     var desired := vehicle_transform.origin + Vector3.UP * vertical_offset - flat_forward * (rear_offset + horizontal_offset)
