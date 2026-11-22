@@ -1,9 +1,10 @@
 extends RigidBody3D
 
 # Four-point suspension and inertial flight model.
-@export var hover_height := 1.4
-@export var suspension_frequency := 2.5
-@export var suspension_damping := 0.92
+@export var altitude_climb_rate := 6.0
+@export var altitude_hold_gain := 2.2
+@export var altitude_hold_damping := 2.8
+@export var max_vertical_acceleration := 12.0
 @export var forward_thrust := 12500.0
 @export var lateral_thrust := 7200.0
 @export var vertical_thrust := 15000.0
@@ -23,6 +24,7 @@ var smoothed_strafe := 0.0
 var smoothed_vertical := 0.0
 var model_pitch := 0.0
 var model_roll := 0.0
+var target_altitude := 1.5
 
 const SUSPENSION_POINTS := [
     Vector3(-0.88, 0.12, -1.55),
@@ -35,6 +37,7 @@ func _ready() -> void:
     model_pivot = get_node_or_null("ModelPivot")
     gravity_scale = 1.0
     can_sleep = false
+    target_altitude = global_position.y
 
 func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventKey:
@@ -57,7 +60,8 @@ func _physics_process(delta: float) -> void:
     smoothed_strafe = move_toward(smoothed_strafe, strafe_input, delta * 2.8)
     smoothed_vertical = move_toward(smoothed_vertical, vertical_input, delta * 2.2)
 
-    _apply_four_point_suspension()
+    target_altitude = maxf(0.8, target_altitude + smoothed_vertical * altitude_climb_rate * delta)
+    _apply_altitude_hold()
     _apply_flight_forces()
     _apply_attitude_control(delta)
 
@@ -67,39 +71,21 @@ func _physics_process(delta: float) -> void:
         model_pivot.rotation.x = model_pitch
         model_pivot.rotation.z = model_roll
 
-func _apply_four_point_suspension() -> void:
-    var state := get_world_3d().direct_space_state
-    var omega := TAU * suspension_frequency
-    var spring_k := mass * omega * omega / float(SUSPENSION_POINTS.size())
-    var damper_c := 2.0 * suspension_damping * mass * omega / float(SUSPENSION_POINTS.size())
-    var support_force := mass * float(ProjectSettings.get_setting("physics/3d/default_gravity")) / float(SUSPENSION_POINTS.size())
-
-    for local_point in SUSPENSION_POINTS:
-        var world_offset: Vector3 = global_transform.basis * local_point
-        var ray_start: Vector3 = global_position + world_offset
-        var ray_end: Vector3 = ray_start + Vector3.DOWN * (hover_height + 1.8)
-        var query := PhysicsRayQueryParameters3D.create(ray_start, ray_end)
-        query.exclude = [get_rid()]
-        var hit := state.intersect_ray(query)
-        if hit.is_empty():
-            continue
-
-        var distance: float = ray_start.distance_to(hit.position)
-        if distance > hover_height + 0.35:
-            continue
-
-        var point_velocity: Vector3 = linear_velocity + angular_velocity.cross(world_offset)
-        var vertical_speed: float = point_velocity.dot(Vector3.UP)
-        var compression: float = hover_height - distance
-        var lift: float = support_force + compression * spring_k - vertical_speed * damper_c
-        lift = clampf(lift, 0.0, support_force * 4.0)
-        apply_force(Vector3.UP * lift, world_offset)
+func _apply_altitude_hold() -> void:
+    # Continuous lift balances gravity at every altitude, not only near the ground.
+    # The target altitude moves while UP/DOWN is held and stays fixed after release.
+    var gravity := float(ProjectSettings.get_setting("physics/3d/default_gravity")) * gravity_scale
+    var altitude_error := target_altitude - global_position.y
+    var vertical_speed := linear_velocity.y
+    var correction_acceleration := altitude_error * altitude_hold_gain - vertical_speed * altitude_hold_damping
+    correction_acceleration = clampf(correction_acceleration, -max_vertical_acceleration, max_vertical_acceleration)
+    var lift_force := mass * (gravity + correction_acceleration)
+    apply_central_force(Vector3.UP * maxf(0.0, lift_force))
 
 func _apply_flight_forces() -> void:
     var basis := global_transform.basis
     apply_central_force(-basis.z * smoothed_forward * forward_thrust)
     apply_central_force(basis.x * smoothed_strafe * lateral_thrust)
-    apply_central_force(Vector3.UP * smoothed_vertical * vertical_thrust)
 
     # Preserve forward momentum while gently suppressing sideways skating.
     var local_velocity: Vector3 = basis.inverse() * linear_velocity
