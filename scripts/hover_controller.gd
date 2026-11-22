@@ -18,7 +18,7 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
     if event is InputEventKey:
-        var down := event.pressed and not event.echo
+        var down: bool = event.pressed and not event.echo
         match event.keycode:
             KEY_W: FlightInput.set_action("forward", down)
             KEY_S: FlightInput.set_action("back", down)
