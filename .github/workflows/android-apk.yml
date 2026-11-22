@@ -36,11 +36,13 @@ jobs:
         if: steps.model.outputs.available == 'true'
         run: blender -b --python scripts/export_blend.py
 
-      - name: Install Java and Android SDK
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y openjdk-17-jdk unzip wget
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - uses: android-actions/setup-android@v3
+
       - name: Install Android packages
         run: |
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
@@ -48,6 +50,8 @@ jobs:
 
       - name: Download Godot and export templates
         run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip wget
           wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
           unzip -q Godot_v4.4.1-stable_linux.x86_64.zip
           chmod +x Godot_v4.4.1-stable_linux.x86_64
@@ -59,19 +63,21 @@ jobs:
       - name: Configure Android paths
         run: |
           mkdir -p ~/.config/godot
-          cat > ~/.config/godot/editor_settings-4.tres <<'EOF'
+          cat > ~/.config/godot/editor_settings-4.tres <<EOF
           [gd_resource type="EditorSettings" format=3]
           [resource]
-          export/android/android_sdk_path = "/usr/lib/android-sdk"
-          export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
           EOF
 
       - name: Import project
         run: ./Godot_v4.4.1-stable_linux.x86_64 --headless --editor --path . --import
+
       - name: Export Android APK
         run: |
           mkdir -p build
           ./Godot_v4.4.1-stable_linux.x86_64 --headless --path . --export-debug "Android" build/CyberHoverDemo.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: CyberHoverDemo-APK
