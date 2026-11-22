@@ -86,6 +86,11 @@ jobs:
           mkdir -p build
           ./Godot_v4.4.1-stable_linux.x86_64 --headless --verbose --path . --export-debug "Android" build/CyberHoverDemo.apk
 
+      - name: Verify APK signature and alignment
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs build/CyberHoverDemo.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 build/CyberHoverDemo.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: CyberHoverDemo-APK
