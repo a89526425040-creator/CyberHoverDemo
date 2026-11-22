@@ -332,6 +332,10 @@ func _make_camera() -> void:
     camera.name = "ChaseCamera"
     camera.current = true
     camera.fov = 68
+    # Camera is positioned manually every rendered frame using the vehicle's
+    # interpolated transform. Disable automatic interpolation on the camera
+    # itself to avoid applying interpolation twice (Godot camera jitter case).
+    camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
     add_child(camera)
     # Start behind and above the hovercraft so the complete vehicle is visible.
     camera.global_position = Vector3(0, 8.0, -14.0)
