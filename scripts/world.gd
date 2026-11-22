@@ -290,8 +290,10 @@ func _update_engine_effects() -> void:
     if engine_effects.is_empty() or not is_instance_valid(vehicle):
         return
     var speed_ratio := clampf(vehicle.linear_velocity.length() / 30.0, 0.0, 1.0)
-    var controller := vehicle
-    var input_power := maxf(absf(controller.smoothed_forward), maxf(absf(controller.smoothed_strafe), absf(controller.smoothed_vertical)))
+    var forward_power := absf(float(vehicle.get("smoothed_forward")))
+    var strafe_power := absf(float(vehicle.get("smoothed_strafe")))
+    var vertical_power := absf(float(vehicle.get("smoothed_vertical")))
+    var input_power := maxf(forward_power, maxf(strafe_power, vertical_power))
     var active := speed_ratio > 0.025 or input_power > 0.06
     var intensity := clampf(maxf(speed_ratio, input_power) * 1.35, 0.12, 1.0)
     for particles in engine_effects:
