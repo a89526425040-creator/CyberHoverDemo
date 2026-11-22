@@ -113,7 +113,7 @@ func _apply_attitude_control(_delta: float) -> void:
     var relative_basis: Basis = heading_basis.inverse() * basis
     var attitude := relative_basis.get_euler()
 
-    var desired_yaw_rate := -smoothed_strafe * 0.72 * speed_factor
+    var desired_yaw_rate := smoothed_strafe * 0.72 * speed_factor
     var yaw_control := (desired_yaw_rate - local_angular.y) * yaw_torque
 
     # Stick deflection sets a bank/pitch angle; spring-damper control returns smoothly to level.
