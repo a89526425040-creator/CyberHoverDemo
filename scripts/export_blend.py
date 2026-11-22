@@ -19,6 +19,26 @@ for folder, _, files in os.walk(ASSETS):
 
 missing = []
 relinked = []
+print("=== MATERIAL DIAGNOSTICS ===")
+for material in bpy.data.materials:
+    print("MATERIAL:", material.name, "diffuse_color:", tuple(round(float(v), 4) for v in material.diffuse_color))
+    if material.use_nodes and material.node_tree:
+        for node in material.node_tree.nodes:
+            if node.type == "BSDF_PRINCIPLED":
+                base = node.inputs.get("Base Color")
+                emission = node.inputs.get("Emission Color") or node.inputs.get("Emission")
+                print("  PRINCIPLED:", node.name,
+                      "base_color:", tuple(round(float(v), 4) for v in base.default_value) if base else None,
+                      "emission:", tuple(round(float(v), 4) for v in emission.default_value) if emission else None)
+            elif node.type == "TEX_IMAGE":
+                links = []
+                for link in material.node_tree.links:
+                    if link.from_node == node:
+                        links.append(link.to_node.name + "." + link.to_socket.name)
+                print("  IMAGE:", node.name,
+                      "file:", bpy.path.basename(node.image.filepath) if node.image else None,
+                      "targets:", links)
+print("=== END MATERIAL DIAGNOSTICS ===")
 for image in list(bpy.data.images):
     if image.source != "FILE" or image.packed_file:
         continue
@@ -62,4 +82,4 @@ if not os.path.isfile(OUTPUT) or os.path.getsize(OUTPUT) < 1024:
 print("Exported model:", OUTPUT, "size:", os.path.getsize(OUTPUT))
 print("Textures relinked:", len(relinked), sorted(relinked))
 print("Missing image files:", len(missing), sorted(missing))
-print("Removed ground/backdrop meshes:", removed_planes)
+print("Removed ground/backdrop meshes: [] (no automatic mesh deletion)")
