@@ -247,9 +247,10 @@ func _add_engine_plume(parent: Node3D, local_position: Vector3, core: bool) -> v
     particles.initial_velocity_min = 5.0 if core else 3.2
     particles.initial_velocity_max = 8.0 if core else 5.8
     particles.gravity = Vector3.ZERO
-    particles.damping = 0.0
-    particles.scale_min = 0.10 if core else 0.17
-    particles.scale_max = 0.17 if core else 0.29
+    particles.damping_min = 0.0
+    particles.damping_max = 0.0
+    particles.scale_amount_min = 0.10 if core else 0.17
+    particles.scale_amount_max = 0.17 if core else 0.29
     particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
     particles.emission_sphere_radius = 0.055 if core else 0.10
 
@@ -262,9 +263,7 @@ func _add_engine_plume(parent: Node3D, local_position: Vector3, core: bool) -> v
         gradient.set_color(0, Color(0.20, 0.82, 1.0, 0.88))
         gradient.add_point(0.55, Color(0.04, 0.38, 1.0, 0.62))
         gradient.add_point(1.0, Color(0.02, 0.12, 0.75, 0.0))
-    var ramp := GradientTexture1D.new()
-    ramp.gradient = gradient
-    particles.color_ramp = ramp
+    particles.color_ramp = gradient
 
     var quad := QuadMesh.new()
     quad.size = Vector2(0.30, 0.30) if core else Vector2(0.48, 0.48)
