@@ -367,7 +367,7 @@ func _process(delta: float) -> void:
         var move := Vector3(
             FlightInput.axis("left", "right"),
             FlightInput.axis("down", "up"),
-            FlightInput.axis("back", "forward")
+            -FlightInput.axis("back", "forward")
         )
         var basis := Basis(Vector3.UP, free_camera_yaw) * Basis(Vector3.RIGHT, free_camera_pitch)
         camera.global_position += (basis * move) * free_camera_speed * delta
