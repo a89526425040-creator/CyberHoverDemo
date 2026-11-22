@@ -465,8 +465,17 @@ func _process(delta: float) -> void:
     var vertical_offset := 6.0
     var horizontal_offset := sqrt(maxf(camera_distance * camera_distance - vertical_offset * vertical_offset, 0.1))
     var target := vehicle_transform.origin + Vector3(0, 0.65, 0)
-    var desired := vehicle_transform.origin + vehicle_transform.basis * Vector3(0, vertical_offset, -(rear_offset + horizontal_offset))
-    camera.global_position = camera.global_position.lerp(desired, minf(delta * 7.0, 1.0))
+
+    # Follow heading only. Do not rotate the chase-camera offset with pitch/bank:
+    # otherwise every acceleration tilt moves the camera vertically and sideways.
+    var flat_forward := -vehicle_transform.basis.z
+    flat_forward.y = 0.0
+    if flat_forward.length_squared() < 0.001:
+        flat_forward = Vector3.FORWARD
+    flat_forward = flat_forward.normalized()
+    var flat_right := Vector3.UP.cross(flat_forward).normalized()
+    var desired := vehicle_transform.origin + Vector3.UP * vertical_offset - flat_forward * (rear_offset + horizontal_offset)
+    camera.global_position = camera.global_position.lerp(desired, minf(delta * 4.5, 1.0))
     camera.look_at(target, Vector3.UP)
     _update_engine_effects()
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
