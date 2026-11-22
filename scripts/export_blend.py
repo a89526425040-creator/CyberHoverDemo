@@ -9,10 +9,10 @@ if not os.path.isfile(BLEND):
     raise RuntimeError("Missing assets/source/cdp-test-7.blend")
 bpy.ops.wm.open_mainfile(filepath=BLEND)
 
-# Relink every supplied texture by filename. The source blend also refers
-# to four baked maps that are not included in the uploaded archive.
+# Relink supplied textures and remove only image datablocks whose
+# source files are absent. The GLB exporter embeds the remaining images.
 missing = set()
-for image in bpy.data.images:
+for image in list(bpy.data.images):
     if image.source != "FILE":
         continue
     original_name = os.path.basename(bpy.path.abspath(image.filepath))
@@ -22,19 +22,16 @@ for image in bpy.data.images:
         image.reload()
     else:
         missing.add(original_name)
+        for material in bpy.data.materials:
+            if not material.use_nodes or not material.node_tree:
+                continue
+            for node in material.node_tree.nodes:
+                if node.type == "TEX_IMAGE" and node.image == image:
+                    node.image = None
+        bpy.data.images.remove(image, do_unlink=True)
 
-# Disconnect only image nodes whose source files are genuinely absent.
-for material in bpy.data.materials:
-    if not material.use_nodes or not material.node_tree:
-        continue
-    for node in material.node_tree.nodes:
-        if node.type == "TEX_IMAGE" and node.image:
-            path = bpy.path.abspath(node.image.filepath)
-            if node.image.source == "FILE" and not os.path.isfile(path):
-                node.image = None
-
-# Pack the available textures into the exported GLB.
-bpy.ops.file.pack_all()
+# Do not call pack_all(): Blender attempts to pack every datablock, including
+# missing optional baked maps. glTF embeds the valid external texture files.
 bpy.ops.export_scene.gltf(
     filepath=OUTPUT,
     export_format="GLB",
