@@ -135,7 +135,7 @@ func _make_hud() -> void:
     # All flight controls are grouped on the left side of the screen.
     var controls := VBoxContainer.new()
     controls.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-    controls.position = Vector2(20, -238)
+    controls.position = Vector2(20, -330)
     controls.add_theme_constant_override("separation", 8)
     layer.add_child(controls)
 
@@ -198,7 +198,9 @@ func _process(delta: float) -> void:
         return
     # Camera follows from behind and above, using the hovercraft's own heading.
     var target := vehicle.global_position + Vector3(0, 0.9, 0)
-    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, 7.2, 13.5)
+    # The imported hovercraft faces +Z, so its rear is along -Z.
+    # Keep the camera farther back and higher to show the complete silhouette.
+    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, 9.0, -19.0)
     camera.global_position = camera.global_position.lerp(desired, minf(delta * 3.5, 1.0))
     camera.look_at(target, Vector3.UP)
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
