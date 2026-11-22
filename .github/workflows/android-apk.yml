@@ -72,11 +72,17 @@ jobs:
           unzip -q Godot_v4.4.1-stable_export_templates.tpz -d /tmp/godot-templates
           cp -r /tmp/godot-templates/templates/* ~/.local/share/godot/export_templates/4.4.1.stable/
 
-      - name: Configure Android paths
+      - name: Restore persistent Android signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: cyberhover-android-signing-v1
+
+      - name: Create signing key on first build
         run: |
           mkdir -p ~/.config/godot ~/.android
           if [ ! -f "$HOME/.android/debug.keystore" ]; then
-            keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            keytool -genkeypair -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Cyber Hover Demo,O=Cyber Hover,C=US"
           fi
           cat > ~/.config/godot/editor_settings-4.4.tres <<EOF
           [gd_resource type="EditorSettings" format=3]
@@ -87,6 +93,11 @@ jobs:
           export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_pass = "android"
           EOF
+
+      - name: Set Android version code
+        run: |
+          sed -i -E "s|^version/code=.*|version/code=${GITHUB_RUN_NUMBER}|" export_presets.cfg
+          grep '^version/code=' export_presets.cfg
 
       - name: Import project
         run: ./Godot_v4.4.1-stable_linux.x86_64 --headless --editor --path . --import
