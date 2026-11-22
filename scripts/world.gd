@@ -4,6 +4,114 @@ var vehicle: RigidBody3D
 var camera: Camera3D
 var telemetry: Label
 
+
+class TouchJoystick extends Control:
+    var finger_index := -1
+    var mouse_held := false
+    var axis_value := Vector2.ZERO
+    var outer_radius := 82.0
+
+    func _ready() -> void:
+        custom_minimum_size = Vector2(190, 190)
+        mouse_filter = Control.MOUSE_FILTER_STOP
+        queue_redraw()
+
+    func _draw() -> void:
+        var center := size * 0.5
+        draw_circle(center, outer_radius, Color(0.015, 0.04, 0.08, 0.72))
+        draw_arc(center, outer_radius, 0.0, TAU, 64, Color(0.08, 0.78, 1.0, 0.95), 4.0, true)
+        draw_circle(center, 39.0, Color(0.12, 0.25, 0.34, 0.9))
+        draw_arc(center, 39.0, 0.0, TAU, 48, Color(0.25, 0.85, 1.0, 0.9), 2.0, true)
+        draw_circle(center + axis_value * 61.0, 27.0, Color(0.05, 0.65, 0.9, 0.95))
+        draw_arc(center + axis_value * 61.0, 27.0, 0.0, TAU, 40, Color(0.65, 0.95, 1.0), 2.0, true)
+
+    func _gui_input(event: InputEvent) -> void:
+        if event is InputEventScreenTouch:
+            if event.pressed and finger_index == -1:
+                finger_index = event.index
+                _update_axis(event.position)
+                accept_event()
+            elif not event.pressed and event.index == finger_index:
+                finger_index = -1
+                _clear_axis()
+                accept_event()
+        elif event is InputEventScreenDrag and event.index == finger_index:
+            _update_axis(event.position)
+            accept_event()
+        elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+            mouse_held = event.pressed
+            if mouse_held:
+                _update_axis(event.position)
+            else:
+                _clear_axis()
+            accept_event()
+        elif event is InputEventMouseMotion and mouse_held:
+            _update_axis(event.position)
+            accept_event()
+
+    func _update_axis(point: Vector2) -> void:
+        var offset := point - size * 0.5
+        axis_value = (offset / outer_radius).limit_length(1.0)
+        FlightInput.set_action("forward", axis_value.y < -0.18)
+        FlightInput.set_action("back", axis_value.y > 0.18)
+        FlightInput.set_action("left", axis_value.x < -0.18)
+        FlightInput.set_action("right", axis_value.x > 0.18)
+        queue_redraw()
+
+    func _clear_axis() -> void:
+        axis_value = Vector2.ZERO
+        FlightInput.set_action("forward", false)
+        FlightInput.set_action("back", false)
+        FlightInput.set_action("left", false)
+        FlightInput.set_action("right", false)
+        queue_redraw()
+
+
+class HoldTouchButton extends Control:
+    var action_name := ""
+    var caption := ""
+    var finger_index := -1
+    var mouse_held := false
+    var is_pressed := false
+
+    func setup(action: String, text_value: String) -> void:
+        action_name = action
+        caption = text_value
+        custom_minimum_size = Vector2(94, 82)
+        mouse_filter = Control.MOUSE_FILTER_STOP
+
+    func _draw() -> void:
+        var center := size * 0.5
+        var fill := Color(0.0, 0.52, 0.72, 0.95) if is_pressed else Color(0.015, 0.055, 0.09, 0.82)
+        draw_circle(center, 37.0, fill)
+        draw_arc(center, 37.0, 0.0, TAU, 48, Color(0.12, 0.82, 1.0), 3.0, true)
+        draw_string(ThemeDB.fallback_font, Vector2(center.x, center.y + 7.0), caption, HORIZONTAL_ALIGNMENT_CENTER, -1.0, 20, Color(0.9, 0.98, 1.0))
+
+    func _gui_input(event: InputEvent) -> void:
+        if event is InputEventScreenTouch:
+            if event.pressed and finger_index == -1:
+                finger_index = event.index
+                _set_pressed(true)
+                accept_event()
+            elif not event.pressed and event.index == finger_index:
+                finger_index = -1
+                _set_pressed(false)
+                accept_event()
+        elif event is InputEventScreenDrag and event.index == finger_index:
+            accept_event()
+        elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+            mouse_held = event.pressed
+            _set_pressed(mouse_held)
+            accept_event()
+
+    func _set_pressed(value: bool) -> void:
+        is_pressed = value
+        FlightInput.set_action(action_name, value)
+        queue_redraw()
+
+    func _exit_tree() -> void:
+        FlightInput.set_action(action_name, false)
+
 func _ready() -> void:
     _make_environment()
     _make_pad()
@@ -132,33 +240,24 @@ func _make_hud() -> void:
     telemetry.add_theme_color_override("font_color", Color(0.85, 0.92, 1))
     panel.add_child(telemetry)
 
-    # All flight controls are grouped on the left side of the screen.
-    var controls := VBoxContainer.new()
-    controls.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-    controls.position = Vector2(20, -330)
-    controls.add_theme_constant_override("separation", 8)
-    layer.add_child(controls)
+    # Left: analog movement joystick. Right: independent altitude hold buttons.
+    var joystick := TouchJoystick.new()
+    joystick.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+    joystick.position = Vector2(24, -214)
+    layer.add_child(joystick)
 
-    var directions := GridContainer.new()
-    directions.columns = 3
-    directions.add_theme_constant_override("h_separation", 7)
-    directions.add_theme_constant_override("v_separation", 7)
-    controls.add_child(directions)
-    _add_control_spacer(directions)
-    _add_touch_button(directions, "▲", "forward")
-    _add_control_spacer(directions)
-    _add_touch_button(directions, "◀", "left")
-    _add_control_spacer(directions)
-    _add_touch_button(directions, "▶", "right")
-    _add_control_spacer(directions)
-    _add_touch_button(directions, "▼", "back")
-    _add_control_spacer(directions)
+    var lift_controls := VBoxContainer.new()
+    lift_controls.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+    lift_controls.position = Vector2(-122, -205)
+    lift_controls.add_theme_constant_override("separation", 12)
+    layer.add_child(lift_controls)
 
-    var lift_row := HBoxContainer.new()
-    lift_row.add_theme_constant_override("separation", 7)
-    controls.add_child(lift_row)
-    _add_touch_button(lift_row, "LIFT +", "up")
-    _add_touch_button(lift_row, "LIFT −", "down")
+    var up_button := HoldTouchButton.new()
+    up_button.setup("up", "▲")
+    lift_controls.add_child(up_button)
+    var down_button := HoldTouchButton.new()
+    down_button.setup("down", "▼")
+    lift_controls.add_child(down_button)
 
     var orientation_button := Button.new()
     orientation_button.text = "ПОВЕРНУТЬ ЭКРАН"
@@ -167,20 +266,6 @@ func _make_hud() -> void:
     orientation_button.position = Vector2(-230, 18)
     orientation_button.pressed.connect(_toggle_screen_orientation.bind(orientation_button))
     layer.add_child(orientation_button)
-
-func _add_control_spacer(parent: GridContainer) -> void:
-    var spacer := Control.new()
-    spacer.custom_minimum_size = Vector2(76, 66)
-    parent.add_child(spacer)
-
-func _add_touch_button(parent: Control, caption: String, action: String) -> void:
-    var button := Button.new()
-    button.text = caption
-    button.custom_minimum_size = Vector2(76, 66)
-    button.focus_mode = Control.FOCUS_NONE
-    button.button_down.connect(func(): FlightInput.set_action(action, true))
-    button.button_up.connect(func(): FlightInput.set_action(action, false))
-    parent.add_child(button)
 
 var is_portrait := false
 
@@ -198,9 +283,8 @@ func _process(delta: float) -> void:
         return
     # Camera follows from behind and above, using the hovercraft's own heading.
     var target := vehicle.global_position + Vector3(0, 0.9, 0)
-    # The imported hovercraft faces +Z, so its rear is along -Z.
-    # Keep the camera farther back and higher to show the complete silhouette.
-    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, 9.0, -19.0)
+    # Camera offset is exactly 10 metres from the hovercraft origin.
+    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, 4.0, -9.165)
     camera.global_position = camera.global_position.lerp(desired, minf(delta * 3.5, 1.0))
     camera.look_at(target, Vector3.UP)
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
