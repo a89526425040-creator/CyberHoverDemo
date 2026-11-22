@@ -3,7 +3,7 @@ extends Node3D
 var vehicle: RigidBody3D
 var camera: Camera3D
 var telemetry: Label
-var engine_effects: Array[GPUParticles3D] = []
+var engine_effects: Array[CPUParticles3D] = []
 
 
 class TouchJoystick extends Control:
@@ -233,29 +233,25 @@ func _create_engine_effects(pivot: Node3D) -> void:
         _add_engine_plume(pivot, nozzle_position + Vector3(0.0, 0.0, 0.08), true)
 
 func _add_engine_plume(parent: Node3D, local_position: Vector3, core: bool) -> void:
-    var particles := GPUParticles3D.new()
+    var particles := CPUParticles3D.new()
     particles.name = "EngineFlameCore" if core else "EngineFlame"
     particles.position = local_position
     particles.amount = 24 if core else 34
     particles.lifetime = 0.28 if core else 0.42
-    particles.explosiveness = 0.0
-    particles.randomness = 0.16
     particles.local_coords = false
     particles.emitting = false
     particles.visibility_aabb = AABB(Vector3(-2.5, -2.5, -2.5), Vector3(5.0, 5.0, 8.0))
 
-    var process := ParticleProcessMaterial.new()
-    process.direction = Vector3(0.0, 0.0, 1.0)
-    process.spread = 7.0 if core else 11.0
-    process.initial_velocity_min = 5.0 if core else 3.2
-    process.initial_velocity_max = 8.0 if core else 5.8
-    process.gravity = Vector3.ZERO
-    process.damping_min = 0.0
-    process.damping_max = 0.0
-    process.scale_min = 0.10 if core else 0.17
-    process.scale_max = 0.17 if core else 0.29
-    process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-    process.emission_sphere_radius = 0.055 if core else 0.10
+    particles.direction = Vector3(0.0, 0.0, 1.0)
+    particles.spread = 7.0 if core else 11.0
+    particles.initial_velocity_min = 5.0 if core else 3.2
+    particles.initial_velocity_max = 8.0 if core else 5.8
+    particles.gravity = Vector3.ZERO
+    particles.damping = 0.0
+    particles.scale_min = 0.10 if core else 0.17
+    particles.scale_max = 0.17 if core else 0.29
+    particles.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+    particles.emission_sphere_radius = 0.055 if core else 0.10
 
     var gradient := Gradient.new()
     if core:
@@ -268,8 +264,7 @@ func _add_engine_plume(parent: Node3D, local_position: Vector3, core: bool) -> v
         gradient.add_point(1.0, Color(0.02, 0.12, 0.75, 0.0))
     var ramp := GradientTexture1D.new()
     ramp.gradient = gradient
-    process.color_ramp = ramp
-    particles.process_material = process
+    particles.color_ramp = ramp
 
     var quad := QuadMesh.new()
     quad.size = Vector2(0.30, 0.30) if core else Vector2(0.48, 0.48)
@@ -282,7 +277,7 @@ func _add_engine_plume(parent: Node3D, local_position: Vector3, core: bool) -> v
     flame_material.emission = Color(0.10, 0.55, 1.0)
     flame_material.emission_energy_multiplier = 2.4 if core else 1.8
     quad.material = flame_material
-    particles.draw_pass_1 = quad
+    particles.mesh = quad
     parent.add_child(particles)
     engine_effects.append(particles)
 
@@ -299,7 +294,7 @@ func _update_engine_effects() -> void:
     for particles in engine_effects:
         if is_instance_valid(particles):
             particles.emitting = active
-            particles.amount_ratio = intensity
+            particles.speed_scale = lerpf(0.65, 1.65, intensity)
 
 var is_portrait := false
 var free_camera_mode := false
