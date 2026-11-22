@@ -66,8 +66,8 @@ func _physics_process(delta: float) -> void:
     _apply_attitude_control(delta)
 
     if model_pivot:
-        model_pitch = lerp(model_pitch, -smoothed_forward * 0.045, minf(delta * 3.0, 1.0))
-        model_roll = lerp(model_roll, -smoothed_strafe * 0.055, minf(delta * 3.0, 1.0))
+        model_pitch = lerp(model_pitch, smoothed_forward * 0.045, minf(delta * 3.0, 1.0))
+        model_roll = lerp(model_roll, smoothed_strafe * 0.055, minf(delta * 3.0, 1.0))
         model_pivot.rotation.x = model_pitch
         model_pivot.rotation.z = model_roll
 
@@ -84,8 +84,10 @@ func _apply_altitude_hold() -> void:
 
 func _apply_flight_forces() -> void:
     var basis := global_transform.basis
-    apply_central_force(-basis.z * smoothed_forward * forward_thrust)
-    apply_central_force(basis.x * smoothed_strafe * lateral_thrust)
+    # This imported hovercraft's nose points along local +Z.
+    apply_central_force(basis.z * smoothed_forward * forward_thrust)
+    # In this model's local axes, screen-right corresponds to local -X.
+    apply_central_force(-basis.x * smoothed_strafe * lateral_thrust)
 
     # Preserve forward momentum while gently suppressing sideways skating.
     var local_velocity: Vector3 = basis.inverse() * linear_velocity
@@ -115,8 +117,8 @@ func _apply_attitude_control(_delta: float) -> void:
     var yaw_control := (desired_yaw_rate - local_angular.y) * yaw_torque
 
     # Stick deflection sets a bank/pitch angle; spring-damper control returns smoothly to level.
-    var desired_pitch := -smoothed_forward * max_pitch
-    var desired_roll := -smoothed_strafe * max_bank
+    var desired_pitch := smoothed_forward * max_pitch
+    var desired_roll := smoothed_strafe * max_bank
     var pitch_control := (desired_pitch - attitude.x) * attitude_gain - local_angular.x * attitude_damping
     var roll_control := (desired_roll - attitude.z) * attitude_gain - local_angular.z * attitude_damping
     var yaw_damping := -local_angular.y * attitude_damping * 0.25
