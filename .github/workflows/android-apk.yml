@@ -9,31 +9,38 @@ jobs:
   android:
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Verify original vehicle files
+      - name: Check optional source model
+        id: model
         run: |
-          test -f assets/source/cdp-test-7.blend
-          test -d assets/textures
-          test -f assets/textures/cdp_body_normal.png
+          if [ -f assets/source/cdp-test-7.blend ] && [ -f assets/textures/cdp_body_normal.png ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Original Blender model/textures are not uploaded yet. Building the physics demo with a temporary placeholder vehicle."
+          fi
 
-      - name: Install Blender and Java
+      - name: Install Blender (when model is present)
+        if: steps.model.outputs.available == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender openjdk-17-jdk unzip wget
-
-      - name: Export Blender model to GLB
+          sudo apt-get install -y blender
+      - name: Convert Blender model to GLB
+        if: steps.model.outputs.available == 'true'
         run: blender -b --python scripts/export_blend.py
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
-      - name: Install Android SDK packages
+      - name: Install Java and Android SDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jdk unzip wget
+      - uses: android-actions/setup-android@v3
+      - name: Install Android packages
         run: |
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
           yes | sdkmanager --licenses
 
-      - name: Download Godot 4.4.1 and export templates
+      - name: Download Godot and export templates
         run: |
           wget -q https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
           unzip -q Godot_v4.4.1-stable_linux.x86_64.zip
@@ -55,14 +62,11 @@ jobs:
 
       - name: Import project
         run: ./Godot_v4.4.1-stable_linux.x86_64 --headless --editor --path . --import
-
-      - name: Export APK
+      - name: Export Android APK
         run: |
           mkdir -p build
           ./Godot_v4.4.1-stable_linux.x86_64 --headless --path . --export-debug "Android" build/CyberHoverDemo.apk
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: CyberHoverDemo-APK
           path: build/CyberHoverDemo.apk
