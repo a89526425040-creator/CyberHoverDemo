@@ -52,10 +52,10 @@ class TouchJoystick extends Control:
     func _update_axis(point: Vector2) -> void:
         var offset := point - size * 0.5
         axis_value = (offset / outer_radius).limit_length(1.0)
-        FlightInput.set_action("forward", axis_value.y < -0.18)
-        FlightInput.set_action("back", axis_value.y > 0.18)
-        FlightInput.set_action("left", axis_value.x < -0.18)
-        FlightInput.set_action("right", axis_value.x > 0.18)
+        FlightInput.set_axis("forward", maxf(0.0, -axis_value.y))
+        FlightInput.set_axis("back", maxf(0.0, axis_value.y))
+        FlightInput.set_axis("left", maxf(0.0, -axis_value.x))
+        FlightInput.set_axis("right", maxf(0.0, axis_value.x))
         queue_redraw()
 
     func _clear_axis() -> void:
@@ -64,6 +64,10 @@ class TouchJoystick extends Control:
         FlightInput.set_action("back", false)
         FlightInput.set_action("left", false)
         FlightInput.set_action("right", false)
+        FlightInput.set_axis("forward", 0.0)
+        FlightInput.set_axis("back", 0.0)
+        FlightInput.set_axis("left", 0.0)
+        FlightInput.set_axis("right", 0.0)
         queue_redraw()
 
 
