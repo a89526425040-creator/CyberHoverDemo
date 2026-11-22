@@ -84,9 +84,9 @@ func _apply_altitude_hold() -> void:
 
 func _apply_flight_forces() -> void:
     var basis := global_transform.basis
-    # The vehicle faces local -Z; its rear and chase camera are on +Z.
-    # Keep the visual pitch/bank response unchanged; correct only translation.
-    apply_central_force(-basis.z * smoothed_forward * forward_thrust)
+    # The imported hovercraft's nose points along local +Z.
+    # Positive forward input must accelerate along +Z.
+    apply_central_force(basis.z * smoothed_forward * forward_thrust)
     # Screen-right is local +X for this vehicle.
     apply_central_force(basis.x * smoothed_strafe * lateral_thrust)
 
