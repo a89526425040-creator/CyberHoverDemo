@@ -456,14 +456,17 @@ func _process(delta: float) -> void:
         camera.global_basis = basis
         return
 
+    # Follow the interpolated physics transform so camera motion stays in sync
+    # with rendered rigid-body motion instead of sampling between physics ticks.
+    var vehicle_transform := vehicle.get_global_transform_interpolated()
     # The hovercraft moves forward along local -Z; its rear is local +Z.
     # Camera distance is measured from the rear edge, with a small elevated racing-game view.
     var rear_offset := 2.25
     var vertical_offset := 6.0
     var horizontal_offset := sqrt(maxf(camera_distance * camera_distance - vertical_offset * vertical_offset, 0.1))
-    var target := vehicle.global_position + Vector3(0, 0.65, 0)
-    var desired := vehicle.global_position + vehicle.global_transform.basis * Vector3(0, vertical_offset, -(rear_offset + horizontal_offset))
-    camera.global_position = camera.global_position.lerp(desired, minf(delta * 5.0, 1.0))
+    var target := vehicle_transform.origin + Vector3(0, 0.65, 0)
+    var desired := vehicle_transform.origin + vehicle_transform.basis * Vector3(0, vertical_offset, -(rear_offset + horizontal_offset))
+    camera.global_position = camera.global_position.lerp(desired, minf(delta * 7.0, 1.0))
     camera.look_at(target, Vector3.UP)
     _update_engine_effects()
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
