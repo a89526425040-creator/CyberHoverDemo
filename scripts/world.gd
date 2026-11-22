@@ -475,7 +475,11 @@ func _process(delta: float) -> void:
     flat_forward = flat_forward.normalized()
     var flat_right := Vector3.UP.cross(flat_forward).normalized()
     var desired := vehicle_transform.origin + Vector3.UP * vertical_offset - flat_forward * (rear_offset + horizontal_offset)
+    # Position follows the interpolated body directly; orientation is damped
+    # independently to avoid tiny heading changes being amplified as camera jitter.
     camera.global_position = desired
-    camera.look_at(target, Vector3.UP)
+    var desired_camera_transform := camera.global_transform.looking_at(target, Vector3.UP)
+    var camera_blend := 1.0 - exp(-10.0 * delta)
+    camera.global_basis = camera.global_basis.slerp(desired_camera_transform.basis, camera_blend).orthonormalized()
     _update_engine_effects()
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
