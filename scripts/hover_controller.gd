@@ -129,8 +129,8 @@ func _apply_attitude_control(delta: float) -> void:
     var roll_control := (desired_roll_rate - local_angular.z) * attitude_gain
 
     # Light self-leveling only: it no longer locks the body upright.
-    var up_error := basis.y.cross(Vector3.UP)
-    var level_torque := Vector3(up_error.dot(basis.x), 0.0, up_error.dot(basis.z)) * attitude_gain * 0.22
+    var up_error_local: Vector3 = basis.inverse() * basis.y.cross(Vector3.UP)
+    var level_torque := Vector3(up_error_local.x, 0.0, up_error_local.z) * attitude_gain * 0.22
     var damping_torque := -local_angular * attitude_damping * 0.45
-    var local_torque := Vector3(pitch_control, yaw_control, roll_control) + level_torque + basis * damping_torque
+    var local_torque := Vector3(pitch_control, yaw_control, roll_control) + level_torque + damping_torque
     apply_torque(basis * local_torque)
