@@ -3,6 +3,23 @@ extends Node3D
 var vehicle: RigidBody3D
 var camera: Camera3D
 var telemetry: Label
+var diagnostic_label: Label
+var diagnostic_visible := false
+var diagnostic_frames := 0
+var diagnostic_jerk_events := 0
+var diagnostic_angular_events := 0
+var diagnostic_frame_events := 0
+var diagnostic_max_frame_ms := 0.0
+var diagnostic_max_jerk := 0.0
+var diagnostic_max_angular_accel := 0.0
+var diagnostic_prev_velocity := Vector3.ZERO
+var diagnostic_prev_acceleration := Vector3.ZERO
+var diagnostic_prev_angular_velocity := Vector3.ZERO
+var diagnostic_prev_camera_position := Vector3.ZERO
+var diagnostic_velocity_ready := false
+var diagnostic_camera_ready := false
+var diagnostic_camera_speed := 0.0
+var diagnostic_max_camera_speed := 0.0
 var engine_effects: Array[CPUParticles3D] = []
 
 
@@ -336,6 +353,11 @@ func _make_hud() -> void:
     telemetry.text = "Управление расположено слева"
     telemetry.add_theme_color_override("font_color", Color(0.85, 0.92, 1))
     panel.add_child(telemetry)
+    diagnostic_label = Label.new()
+    diagnostic_label.visible = false
+    diagnostic_label.add_theme_font_size_override("font_size", 15)
+    diagnostic_label.add_theme_color_override("font_color", Color(1.0, 0.82, 0.35))
+    panel.add_child(diagnostic_label)
 
     # Left: analog movement joystick. Right: independent altitude hold buttons.
     var joystick := TouchJoystick.new()
@@ -384,7 +406,30 @@ func _make_hud() -> void:
     camera_mode_button.pressed.connect(_toggle_free_camera)
     camera_controls.add_child(camera_mode_button)
 
+    var diagnostic_button := Button.new()
+    diagnostic_button.text = "ДИАГ"
+    diagnostic_button.tooltip_text = "Показать диагностику движения"
+    diagnostic_button.custom_minimum_size = Vector2(92, 58)
+    diagnostic_button.pressed.connect(_toggle_diagnostics)
+    camera_controls.add_child(diagnostic_button)
 
+
+
+func _toggle_diagnostics() -> void:
+    diagnostic_visible = not diagnostic_visible
+    diagnostic_label.visible = diagnostic_visible
+    if diagnostic_visible:
+        diagnostic_frames = 0
+        diagnostic_jerk_events = 0
+        diagnostic_angular_events = 0
+        diagnostic_frame_events = 0
+        diagnostic_max_frame_ms = 0.0
+        diagnostic_max_jerk = 0.0
+        diagnostic_max_angular_accel = 0.0
+        diagnostic_max_camera_speed = 0.0
+        diagnostic_velocity_ready = false
+        diagnostic_camera_ready = false
+        diagnostic_label.text = "ДИАГНОСТИКА: сбор данных..."
 
 func _toggle_screen_orientation(button: Button) -> void:
     is_portrait = not is_portrait
@@ -454,6 +499,7 @@ func _process(delta: float) -> void:
         var basis := Basis(Vector3.UP, free_camera_yaw) * Basis(Vector3.RIGHT, free_camera_pitch)
         camera.global_position += (basis * move) * free_camera_speed * delta
         camera.global_basis = basis
+        _update_diagnostics(delta)
         return
 
     # Follow the interpolated physics transform so camera motion stays in sync
@@ -483,3 +529,51 @@ func _process(delta: float) -> void:
     camera.global_basis = camera.global_basis.slerp(desired_camera_transform.basis, camera_blend).orthonormalized()
     _update_engine_effects()
     telemetry.text = "Скорость: %.1f м/с   Высота: %.1f м" % [vehicle.linear_velocity.length(), vehicle.global_position.y]
+    _update_diagnostics(delta)
+
+func _update_diagnostics(delta: float) -> void:
+    if delta <= 0.000001:
+        return
+    var frame_ms := delta * 1000.0
+    diagnostic_max_frame_ms = maxf(diagnostic_max_frame_ms, frame_ms)
+    if frame_ms > 25.0:
+        diagnostic_frame_events += 1
+    diagnostic_frames += 1
+
+    var current_velocity := vehicle.linear_velocity
+    var current_angular := vehicle.angular_velocity
+    var acceleration := Vector3.ZERO
+    var jerk := 0.0
+    var angular_acceleration := 0.0
+    if diagnostic_velocity_ready:
+        acceleration = (current_velocity - diagnostic_prev_velocity) / delta
+        jerk = (acceleration - diagnostic_prev_acceleration).length() / delta
+        angular_acceleration = (current_angular - diagnostic_prev_angular_velocity).length() / delta
+        diagnostic_max_jerk = maxf(diagnostic_max_jerk, jerk)
+        diagnostic_max_angular_accel = maxf(diagnostic_max_angular_accel, angular_acceleration)
+        if jerk > 18.0:
+            diagnostic_jerk_events += 1
+        if angular_acceleration > 0.7:
+            diagnostic_angular_events += 1
+    diagnostic_prev_velocity = current_velocity
+    diagnostic_prev_acceleration = acceleration
+    diagnostic_prev_angular_velocity = current_angular
+    diagnostic_velocity_ready = true
+
+    if diagnostic_camera_ready:
+        diagnostic_camera_speed = camera.global_position.distance_to(diagnostic_prev_camera_position) / delta
+        diagnostic_max_camera_speed = maxf(diagnostic_max_camera_speed, diagnostic_camera_speed)
+    diagnostic_prev_camera_position = camera.global_position
+    diagnostic_camera_ready = true
+
+    if diagnostic_visible:
+        diagnostic_label.text = (
+            "ДИАГНОСТИКА ДВИЖЕНИЯ  |  кадров: %d\n" % diagnostic_frames +
+            "FPS: %.1f   кадр: %.1f мс   макс.: %.1f мс\n" % [1.0 / delta, frame_ms, diagnostic_max_frame_ms] +
+            "Скорость XYZ: %.2f / %.2f / %.2f м/с\n" % [current_velocity.x, current_velocity.y, current_velocity.z] +
+            "Ускорение: %.2f м/с²   рывок: %.1f м/с³ (макс. %.1f)\n" % [acceleration.length(), jerk, diagnostic_max_jerk] +
+            "Угл. скорость: %.3f рад/с   угл. ускорение: %.2f (макс. %.2f)\n" % [current_angular.length(), angular_acceleration, diagnostic_max_angular_accel] +
+            "Камера: %.2f м/с   макс.: %.2f м/с\n" % [diagnostic_camera_speed, diagnostic_max_camera_speed] +
+            "Срабатывания: рывок %d | вращение %d | кадр >25мс: %d\n" % [diagnostic_jerk_events, diagnostic_angular_events, diagnostic_frame_events] +
+            "Порог: рывок >18 м/с³; угл. ускорение >0.7 рад/с²"
+        )
