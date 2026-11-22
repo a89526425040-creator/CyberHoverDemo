@@ -13,9 +13,12 @@ jobs:
 
       - name: Extract uploaded vehicle archive
         run: |
-          if [ -f assets/source/free-cyberpunk-hovercar.zip ]; then
-            unzip -o assets/source/free-cyberpunk-hovercar.zip -d assets/
+          if [ ! -f assets/source/free-cyberpunk-hovercar.zip ]; then
+            echo "::error::Original hovercar archive is missing. Refusing to build a placeholder vehicle."
+            exit 1
           fi
+          mkdir -p assets/source
+          unzip -o assets/source/free-cyberpunk-hovercar.zip -d assets/
 
       - name: Check optional source model
         id: model
@@ -24,7 +27,8 @@ jobs:
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Original Blender model/textures are not uploaded yet. Building the physics demo with a temporary placeholder vehicle."
+            echo "::error::Original Blender model or required texture is missing."
+            exit 1
           fi
 
       - name: Install Blender (when model is present)
