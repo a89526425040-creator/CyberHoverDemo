@@ -158,8 +158,18 @@ for material in bpy.data.materials:
                 print("MATERIAL MAP:", material.name, node.image.name)
 print("=== END RESTORED MATERIALS ===")
 
-# Never delete source meshes automatically: large vehicle hulls can exceed
-# arbitrary dimension thresholds and must remain part of the exported model.
+# Exclude only the confirmed oversized, material-less ground sheet from
+# this exported copy of the scene. The original .blend archive is untouched.
+ground_sheet = bpy.data.objects.get("Plane.005")
+if ground_sheet is None or ground_sheet.type != "MESH":
+    raise RuntimeError("Expected unwanted ground sheet Plane.005 was not found")
+sheet_dimensions = tuple(round(float(v), 3) for v in ground_sheet.dimensions)
+sheet_materials = [slot.material.name if slot.material else "<none>" for slot in ground_sheet.material_slots]
+if sheet_dimensions != (22.612, 36.84, 0.0) or sheet_materials:
+    raise RuntimeError("Plane.005 no longer matches the confirmed empty ground sheet; refusing to remove it")
+bpy.data.objects.remove(ground_sheet, do_unlink=True)
+print("Excluded confirmed ground sheet from export: Plane.005", sheet_dimensions)
+
 mesh_inventory = []
 for obj in bpy.context.scene.objects:
     if obj.type == "MESH":
@@ -186,4 +196,4 @@ if not os.path.isfile(OUTPUT) or os.path.getsize(OUTPUT) < 1024:
 print("Exported model:", OUTPUT, "size:", os.path.getsize(OUTPUT))
 print("Textures relinked:", len(relinked), sorted(relinked))
 print("Missing image files:", len(missing), sorted(missing))
-print("Removed ground/backdrop meshes: [] (no automatic mesh deletion)")
+print("Removed ground/backdrop meshes: [Plane.005] (exact verified object only)")
