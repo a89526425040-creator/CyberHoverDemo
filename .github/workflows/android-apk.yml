@@ -35,7 +35,7 @@ jobs:
         if: steps.model.outputs.available == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender
+          sudo apt-get install -y blender python3-numpy
       - name: Convert Blender model to GLB
         if: steps.model.outputs.available == 'true'
         run: blender -b --python scripts/export_blend.py
