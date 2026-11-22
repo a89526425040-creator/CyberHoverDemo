@@ -41,22 +41,14 @@ for image in list(bpy.data.images):
                     node.image = None
         bpy.data.images.remove(image, do_unlink=True)
 
-# Remove an accidental ground/backdrop plane from the source scene. Keep all
-# vehicle parts; only discard clearly oversized, flat meshes or named ground.
-removed_planes = []
-for obj in list(bpy.context.scene.objects):
-    if obj.type != "MESH":
-        continue
-    name = obj.name.lower()
-    dims = obj.dimensions
-    horizontal_span = max(dims.x, dims.y)
-    flatness = min(dims.x, dims.y, dims.z)
-    named_ground = name in ("plane", "ground", "floor", "ground_plane", "floor_plane")
-    oversized_flat = horizontal_span > 12.0 and flatness < 0.2
-    enormous = max(dims.x, dims.y, dims.z) > 25.0
-    if named_ground or oversized_flat or enormous:
-        removed_planes.append(obj.name)
-        bpy.data.objects.remove(obj, do_unlink=True)
+# Never delete source meshes automatically: large vehicle hulls can exceed
+# arbitrary dimension thresholds and must remain part of the exported model.
+mesh_inventory = []
+for obj in bpy.context.scene.objects:
+    if obj.type == "MESH":
+        mesh_inventory.append((obj.name, tuple(round(float(v), 3) for v in obj.dimensions)))
+print("Preserved source mesh count:", len(mesh_inventory))
+print("Source mesh inventory:", mesh_inventory)
 
 # Export all remaining vehicle meshes and embed every successfully linked map.
 bpy.ops.export_scene.gltf(
