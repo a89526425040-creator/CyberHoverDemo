@@ -11,6 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Extract uploaded vehicle archive
+        run: |
+          if [ -f assets/source/free-cyberpunk-hovercar.zip ]; then
+            unzip -o assets/source/free-cyberpunk-hovercar.zip -d assets/
+          fi
+
       - name: Check optional source model
         id: model
         run: |
