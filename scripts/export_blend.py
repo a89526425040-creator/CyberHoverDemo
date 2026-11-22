@@ -32,7 +32,7 @@ def load_map(filename, non_color=False):
         return None
     image = bpy.data.images.load(path, check_existing=True)
     if non_color:
-        image.colorspace_settings.name = "Non-Color"
+        image.colorspace_settings.name = "Linear"
     relinked.append(filename)
     return image
 
@@ -66,6 +66,7 @@ for material in bpy.data.materials:
     if name == "cdp_body":
         # The source package has no body albedo image; retain its authored base
         # color and restore the supplied normal, glossiness and AO maps.
+        shader.inputs["Base Color"].default_value = (0.025, 0.105, 0.145, 1.0)
         normal = image_node(tree, "cdp_body_normal.png", True)
         if normal:
             normal.location = (-620, -180)
@@ -83,6 +84,17 @@ for material in bpy.data.materials:
         ao = image_node(tree, "cdp_body_Mixed_AO.png", True)
         if ao:
             ao.location = (-620, 420)
+            multiply = tree.nodes.new("ShaderNodeMixRGB")
+            multiply.blend_type = "MULTIPLY"
+            multiply.inputs[0].default_value = 0.45
+            multiply.inputs[1].default_value = (0.025, 0.105, 0.145, 1.0)
+            multiply.location = (-180, 360)
+            tree.links.new(ao.outputs["Color"], multiply.inputs[2])
+            tree.links.new(multiply.outputs["Color"], shader.inputs["Base Color"])
+        body_specular = image_node(tree, "cdp_body_Specular.png", True)
+        if body_specular and shader.inputs.get("Specular"):
+            body_specular.location = (-620, -420)
+            tree.links.new(body_specular.outputs["Color"], shader.inputs["Specular"])
     elif name == "cdp_metal":
         diffuse = image_node(tree, "cdp_metal_Diffuse.png")
         if diffuse:
@@ -96,6 +108,10 @@ for material in bpy.data.materials:
             tree.links.new(gloss.outputs["Color"], invert.inputs["Color"])
             tree.links.new(invert.outputs["Color"], shader.inputs["Roughness"])
         shader.inputs["Metallic"].default_value = 0.8
+        metal_specular = image_node(tree, "cdp_metal_Specular.png", True)
+        if metal_specular and shader.inputs.get("Specular"):
+            metal_specular.location = (-420, -420)
+            tree.links.new(metal_specular.outputs["Color"], shader.inputs["Specular"])
     elif name == "cdp_plastic":
         diffuse = image_node(tree, "cdp_plastic_Diffuse.png")
         if diffuse:
@@ -103,6 +119,10 @@ for material in bpy.data.materials:
             tree.links.new(diffuse.outputs["Color"], shader.inputs["Base Color"])
         shader.inputs["Metallic"].default_value = 0.12
         shader.inputs["Roughness"].default_value = 0.42
+        plastic_specular = image_node(tree, "cdp_plastic_Specular.png", True)
+        if plastic_specular and shader.inputs.get("Specular"):
+            plastic_specular.location = (-420, -420)
+            tree.links.new(plastic_specular.outputs["Color"], shader.inputs["Specular"])
     elif name == "white light":
         emissive = image_node(tree, "white_light_Emissive.png")
         if emissive:
