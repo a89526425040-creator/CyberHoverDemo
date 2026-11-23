@@ -4,13 +4,6 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - "project.godot"
-      - "main.tscn"
-      - "export_presets.cfg"
-      - "scripts/**"
-      - "assets/**"
-      - ".github/workflows/ios-export.yml"
 
 jobs:
   ios-export:
