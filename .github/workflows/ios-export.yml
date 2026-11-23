@@ -1,0 +1,75 @@
+name: Build Cyber Hover iOS Xcode Project
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "project.godot"
+      - "main.tscn"
+      - "export_presets.cfg"
+      - "scripts/**"
+      - "assets/**"
+      - ".github/workflows/ios-export.yml"
+
+jobs:
+  ios-export:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Prepare original hovercar model
+        run: |
+          set -euo pipefail
+          test -f assets/source/free-cyberpunk-hovercar.zip
+          unzip -o assets/source/free-cyberpunk-hovercar.zip -d assets/
+          test -f assets/source/cdp-test-7.blend
+          test -f assets/textures/cdp_body_normal.png
+
+      - name: Install Blender
+        run: |
+          brew update
+          brew install blender
+
+      - name: Convert Blender model to GLB
+        run: |
+          blender -b --python scripts/export_blend.py
+          test -s assets/hovercar.glb
+          rm -f assets/source/cdp-test-7.blend
+
+      - name: Download Godot 4.4.1 and iOS export templates
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 -o godot-macos.zip https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_macos.universal.zip
+          unzip -q godot-macos.zip
+          test -d Godot.app
+          curl -L --fail --retry 3 -o godot-templates.tpz https://github.com/godotengine/godot/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+          TEMPLATE_DIR="$HOME/Library/Application Support/Godot/export_templates/4.4.1.stable"
+          mkdir -p "$TEMPLATE_DIR"
+          unzip -q godot-templates.tpz -d /tmp/godot-templates
+          cp -R /tmp/godot-templates/templates/. "$TEMPLATE_DIR/"
+          chmod +x Godot.app/Contents/MacOS/Godot
+
+      - name: Import project resources
+        run: |
+          ./Godot.app/Contents/MacOS/Godot --headless --editor --path . --import
+
+      - name: Export iOS Xcode project (unsigned)
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          ./Godot.app/Contents/MacOS/Godot --headless --verbose --path . --export-debug "iOS" build/CyberHoverDemo.xcodeproj
+          test -d build/CyberHoverDemo.xcodeproj
+          test -f build/CyberHoverDemo.xcodeproj/project.pbxproj
+          cd build
+          /usr/bin/zip -qr CyberHoverDemo-iOS-Xcode.zip CyberHoverDemo.xcodeproj
+
+      - name: Upload iOS Xcode project
+        uses: actions/upload-artifact@v4
+        with:
+          name: CyberHoverDemo-iOS-Xcode
+          path: build/CyberHoverDemo-iOS-Xcode.zip
+          if-no-files-found: error
+          retention-days: 14
